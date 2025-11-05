@@ -160,6 +160,8 @@ if (args['--help']) {
 
     --wait-between-jobs                     amount of miliseconds to wait before checking queued projects from the api
 
+    --concurrency                           number of jobs to process in parallel within a single worker process (default 1)
+
     --header                                Define custom header that the worker will use to communicate with nexrender-server.
                                             Accepted format follows curl or wget request header definition,
                                             eg. --header="Some-Custom-Header: myCustomValue".
@@ -189,10 +191,16 @@ if (args['--help']) {
 
     --language                              language of local after effects installation. currently only en and de are supported
 
+    --status-port                           starts a local HTTP server exposing GET /health and GET /status (default disabled)
+    --heartbeat-interval                    interval in ms for sending worker heartbeats to the server (default 15000)
+
 
   {bold ENV VARS}
 
       NEXRENDER_API_POLLING                 amount of miliseconds to wait before checking queued projects from the api
+      NEXRENDER_WORKER_CONCURRENCY          default concurrency if --concurrency not provided
+      NEXRENDER_WORKER_STATUS_PORT          default status port if --status-port not provided (0 disables)
+      NEXRENDER_WORKER_HEARTBEAT_MS         default heartbeat interval if --heartbeat-interval not provided
 
   {bold ENV EXAMPLE}
 

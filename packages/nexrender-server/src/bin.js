@@ -58,10 +58,21 @@ if (args['--help']) {
   {bold ENV VARS}
 
       NEXRENDER_DATABASE                  providing value will override where the database file will be read from/written to.
+      NEXRENDER_WORKER_TTL_MS             heartbeat TTL in ms for marking workers as stale (default 60000)
 
   {bold ENV EXAMPLE}
 
       {bold $} NEXRENDER_DATABASE=/etc/nexrender/database.json {cyan nexrender-server} -p 3000
+
+  {bold WORKER REGISTRY}
+
+      The server maintains an in-memory registry of workers that send periodic heartbeats.
+      Endpoints:
+        POST /api/v1/workers/heartbeat
+        GET  /api/v1/workers
+        GET  /api/v1/workers/:name
+        GET  /api/v1/workers/:name/status
+        GET  /api/v1/workers-summary
 `);
     process.exit(2);
 }
