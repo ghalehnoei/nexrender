@@ -30,6 +30,7 @@ const args = arg({
     '--stop-at-time':           String,
     '--stop-days':              String,
     '--wait-between-jobs':      Number,
+    '--concurrency':            Number,
 
     '--skip-cleanup':           Boolean,
     '--skip-render':            Boolean,
@@ -50,6 +51,8 @@ const args = arg({
     '--language':               String,
 
     '--handle-interruption':     Boolean,
+    '--status-port':            Number,
+    '--heartbeat-interval':     Number,
 
     // Aliases
     '-v':           '--version',
@@ -241,6 +244,7 @@ opt('exitOnEmptyQueue',     '--exit-on-empty-queue');
 opt('stopAtTime',           '--stop-at-time');
 opt('stopDays',             '--stop-days');
 opt('waitBetweenJobs',      '--wait-between-jobs');
+opt('concurrency',          '--concurrency');
 opt('maxMemoryPercent',     '--max-memory-percent');
 opt('imageCachePercent',    '--image-cache-percent');
 opt('polling',              '--polling');
@@ -249,6 +253,8 @@ opt('aeParams',             '--aerender-parameter');
 opt('tagSelector',          '--tag-selector');
 opt('language',             '--language');
 opt('handleInterruption',    '--handle-interruption');
+opt('statusPort',           '--status-port');
+opt('heartbeatInterval',    '--heartbeat-interval');
 
 if(args['--cache-path']){
     opt('cache', '--cache-path');

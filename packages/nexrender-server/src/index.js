@@ -20,6 +20,11 @@ const subhandler = router(
     ns(get('/jobs/:uid',        require('./routes/jobs-fetch'))),
     ns(put('/jobs/:uid',        require('./routes/jobs-update'))),
     ns(del('/jobs/:uid',        require('./routes/jobs-remove'))),
+    ns(post('/workers/heartbeat', require('./routes/workers-heartbeat'))),
+    ns(get('/workers',            require('./routes/workers-list'))),
+    ns(get('/workers/:name',      require('./routes/workers-get'))),
+    ns(get('/workers/:name/status', require('./routes/workers-proxy-status'))),
+    ns(get('/workers-summary',      require('./routes/workers-summary'))),
 )
 
 const handler = secret => {

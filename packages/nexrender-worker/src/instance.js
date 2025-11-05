@@ -5,11 +5,17 @@ const { init, render } = require('@nexrender/core')
 const { getRenderingStatus } = require('@nexrender/types/job')
 const { withTimeout } = require('@nexrender/core/src/helpers/timeout');
 const pkg = require('../package.json')
+const http = require('http')
+const os = require('os')
+const fetch = require('node-fetch')
 
 const NEXRENDER_API_POLLING = process.env.NEXRENDER_API_POLLING || 30 * 1000;
 const NEXRENDER_TOLERATE_EMPTY_QUEUES = process.env.NEXRENDER_TOLERATE_EMPTY_QUEUES;
 const NEXRENDER_PICKUP_TIMEOUT = process.env.NEXRENDER_PICKUP_TIMEOUT || 60 * 1000; // 60 second timeout by default
 const LOCK_FILE_NAME = process.env.NEXRENDER_LOCK_FILE_NAME || '.nexrender-worker.lock';
+const NEXRENDER_WORKER_CONCURRENCY = Number(process.env.NEXRENDER_WORKER_CONCURRENCY || 1);
+const NEXRENDER_WORKER_STATUS_PORT = Number(process.env.NEXRENDER_WORKER_STATUS_PORT || 0);
+const NEXRENDER_WORKER_HEARTBEAT_MS = Number(process.env.NEXRENDER_WORKER_HEARTBEAT_MS || 15000);
 
 const delay = amount => new Promise(resolve => setTimeout(resolve, amount))
 
@@ -34,18 +40,23 @@ const createWorker = () => {
     let stop_datetime = null;
     let currentJob = null;
     let client = null;
+    let currentJobs = new Set();
+    let heartbeatTimer = null;
+    let statusServer = null;
 
     // New function to handle interruption
     const handleInterruption = async () => {
-        if (currentJob) {
-            settingsRef.logger.log(`[${currentJob.uid}] Interruption signal received. Updating job state to 'queued'...`);
-            currentJob.onRenderProgress = null;
-            currentJob.state = 'queued';
+        if (currentJobs.size > 0) {
+            settingsRef.logger.log(`[worker] Interruption signal received. Re-queueing ${currentJobs.size} running job(s)...`);
+        }
+        for (const job of Array.from(currentJobs)) {
             try {
-                await client.updateJob(currentJob.uid, getRenderingStatus(currentJob));
-                settingsRef.logger.log(`[${currentJob.uid}] Job state updated to 'queued' successfully.`);
+                job.onRenderProgress = null;
+                job.state = 'queued';
+                await client.updateJob(job.uid, getRenderingStatus(job));
+                settingsRef.logger.log(`[${job.uid}] Job state updated to 'queued' successfully.`);
             } catch (err) {
-                settingsRef.logger.error(`[${currentJob.uid}] Failed to update job state: ${err.message}`);
+                settingsRef.logger.error(`[${job.uid}] Failed to update job state: ${err.message}`);
             }
         }
         active = false;
@@ -125,6 +136,9 @@ const createWorker = () => {
 
         settingsRef = settings;
         active = true;
+        settings.concurrency = Number(settings.concurrency || NEXRENDER_WORKER_CONCURRENCY || 1);
+        settings.statusPort = Number(settings.statusPort || NEXRENDER_WORKER_STATUS_PORT || 0);
+        settings.heartbeatInterval = Number(settings.heartbeatInterval || NEXRENDER_WORKER_HEARTBEAT_MS || 15000);
 
         settings.logger.log('starting nexrender-worker with following settings:')
         Object.keys(settings).forEach(key => {
@@ -144,6 +158,75 @@ const createWorker = () => {
         headers['user-agent'] = ('nexrender-worker/' + pkg.version + ' ' + (headers['user-agent'] || '')).trim();
 
         client = createClient({ host, secret, headers, name: settings.name });
+        const getStatusPayload = () => {
+            return {
+                name: settings.name || os.hostname(),
+                version: pkg.version,
+                pid: process.pid,
+                host: os.hostname(),
+                platform: process.platform,
+                uptimeSec: Math.round(process.uptime()),
+                concurrency: settings.concurrency,
+                runningJobs: Array.from(currentJobs).map(j => j.uid),
+                runningCount: currentJobs.size,
+                statusPort: settings.statusPort || 0,
+                memory: process.memoryUsage(),
+                loadavg: os.loadavg ? os.loadavg() : [],
+                timestamp: new Date().toISOString(),
+            }
+        }
+
+        const startStatusServer = () => {
+            if (!settings.statusPort) return;
+            statusServer = http.createServer((req, res) => {
+                if (req.method == 'GET' && req.url == '/health') {
+                    res.statusCode = 200;
+                    res.end('ok');
+                    return;
+                }
+                if (req.method == 'GET' && req.url == '/status') {
+                    const payload = getStatusPayload();
+                    res.setHeader('content-type', 'application/json');
+                    res.statusCode = 200;
+                    res.end(JSON.stringify(payload));
+                    return;
+                }
+                res.statusCode = 404;
+                res.end('not found');
+            });
+            statusServer.listen(settings.statusPort, () => {
+                settings.logger.log(`[worker] status server listening on port ${settings.statusPort}`)
+            });
+        }
+
+        const startHeartbeat = () => {
+            const postHeartbeat = async () => {
+                try {
+                    const payload = getStatusPayload();
+                    const hbUrl = `${host}/api/v1/workers/heartbeat`;
+                    const resp = await fetch(hbUrl, {
+                        method: 'post',
+                        headers: {
+                            'content-type': 'application/json',
+                            'nexrender-secret': secret || '',
+                            'nexrender-name': settings.name || '',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    if (!resp.ok) {
+                        const t = await resp.text();
+                        settings.logger.log(`[worker] heartbeat failed: ${resp.status} ${t}`)
+                    }
+                } catch (e) {
+                    settings.logger.log(`[worker] heartbeat error: ${e.message}`)
+                }
+            }
+            postHeartbeat();
+            heartbeatTimer = setInterval(postHeartbeat, settings.heartbeatInterval);
+        }
+
+        startStatusServer();
+        startHeartbeat();
 
         settings.track('Worker Started', {
             worker_tags_set: !!settings.tagSelector,
@@ -179,103 +262,121 @@ const createWorker = () => {
             settingsRef.logger.log('Interruption handling enabled.');
         }
 
-        do {
-            currentJob = await nextJob(client, settings);
+        const workerLoop = async (loopId) => {
+            let localJob = null;
+            do {
+                localJob = await nextJob(client, settings);
+                if (!active || !localJob) break;
 
-            // if the worker has been deactivated, exit this loop
-            if (!active) break;
+                settings.track('Worker Job Started', {
+                    job_id: localJob.uid,
+                })
 
-            settings.track('Worker Job Started', {
-                job_id: currentJob.uid, // anonymized internally
-            })
+                localJob.state = 'started';
+                localJob.startedAt = new Date()
 
-            currentJob.state = 'started';
-            currentJob.startedAt = new Date()
-
-            try {
-                await client.updateJob(currentJob.uid, currentJob)
-            } catch (err) {
-                console.log(`[${currentJob.uid}] error while updating job state to ${currentJob.state}. Job abandoned.`)
-                console.log(`[${currentJob.uid}] error stack: ${err.stack}`)
-                continue;
-            }
-
-            try {
-                currentJob.onRenderProgress = ((c, s) => async (job) => {
-                    try {
-                        /* send render progress to our server */
-                        await c.updateJob(job.uid, getRenderingStatus(job));
-
-                        if (s.onRenderProgress) {
-                            s.onRenderProgress(job);
-                        }
-                    } catch (err) {
-                        if (s.stopOnError) {
-                            throw err;
-                        } else {
-                            console.log(`[${job.uid}] error updating job state occurred: ${err.stack}`)
-                        }
-                    }
-                })(client, settings);
-                currentJob.onRenderError = ((c, s, job) => (_, err) => {
-                    job.error = [].concat(job.error || [], [err.toString()]);
-
-                    if (s.onRenderError) {
-                        s.onRenderError(job, err);
-                    }
-
-                    /* send render progress to our server */
-                    c.updateJob(job.uid, getRenderingStatus(job));
-                })(client, settings, currentJob);
-
-                currentJob = await render(currentJob, settings); {
-                    currentJob.state = 'finished';
-                    currentJob.finishedAt = new Date();
-                    if (settings.onFinished) {
-                        settings.onFinished(currentJob);
-                    }
-                }
-
-                settings.track('Worker Job Finished', { job_id: currentJob.uid })
-
-                await client.updateJob(currentJob.uid, getRenderingStatus(currentJob))
-            } catch (err) {
-                currentJob.error = [].concat(currentJob.error || [], [err.toString()]);
-                currentJob.errorAt = new Date();
-                currentJob.state = 'error';
-
-                settings.track('Worker Job Error', { job_id: currentJob.uid });
-
-                if (settings.onError) {
-                    settings.onError(currentJob, err);
+                try {
+                    await client.updateJob(localJob.uid, localJob)
+                } catch (err) {
+                    console.log(`[${localJob.uid}] error while updating job state to ${localJob.state}. Job abandoned.`)
+                    console.log(`[${localJob.uid}] error stack: ${err.stack}`)
+                    continue;
                 }
 
                 try {
-                    await client.updateJob(currentJob.uid, getRenderingStatus(currentJob))
-                }
-                catch (e) {
-                    console.log(`[${currentJob.uid}] error while updating job state to ${currentJob.state}. Job abandoned.`)
-                    console.log(`[${currentJob.uid}] error stack: ${e.stack}`)
+                    currentJobs.add(localJob);
+                    localJob.onRenderProgress = ((c, s) => async (job) => {
+                        try {
+                            /* send render progress to our server */
+                            await c.updateJob(job.uid, getRenderingStatus(job));
+
+                            if (s.onRenderProgress) {
+                                s.onRenderProgress(job);
+                            }
+                        } catch (err) {
+                            if (s.stopOnError) {
+                                throw err;
+                            } else {
+                                console.log(`[${job.uid}] error updating job state occurred: ${err.stack}`)
+                            }
+                        }
+                    })(client, settings);
+                    localJob.onRenderError = ((c, s, job) => (_, err) => {
+                        job.error = [].concat(job.error || [], [err.toString()]);
+
+                        if (s.onRenderError) {
+                            s.onRenderError(job, err);
+                        }
+
+                        /* send render progress to our server */
+                        c.updateJob(job.uid, getRenderingStatus(job));
+                    })(client, settings, localJob);
+
+                    localJob = await render(localJob, settings); {
+                        localJob.state = 'finished';
+                        localJob.finishedAt = new Date();
+                        if (settings.onFinished) {
+                            settings.onFinished(localJob);
+                        }
+                    }
+
+                    settings.track('Worker Job Finished', { job_id: localJob.uid })
+
+                    await client.updateJob(localJob.uid, getRenderingStatus(localJob))
+                } catch (err) {
+                    localJob.error = [].concat(localJob.error || [], [err.toString()]);
+                    localJob.errorAt = new Date();
+                    localJob.state = 'error';
+
+                    settings.track('Worker Job Error', { job_id: localJob.uid });
+
+                    if (settings.onError) {
+                        settings.onError(localJob, err);
+                    }
+
+                    try {
+                        await client.updateJob(localJob.uid, getRenderingStatus(localJob))
+                    }
+                    catch (e) {
+                        console.log(`[${localJob.uid}] error while updating job state to ${localJob.state}. Job abandoned.`)
+                        console.log(`[${localJob.uid}] error stack: ${e.stack}`)
+                    }
+
+                    if (settings.stopOnError) {
+                        throw err;
+                    } else {
+                        console.log(`[${localJob.uid}] error occurred: ${err.stack}`)
+                        console.log(`[${localJob.uid}] render proccess stopped with error...`)
+                        console.log(`[${localJob.uid}] continue listening next job...`)
+                    }
+                } finally {
+                    currentJobs.delete(localJob);
                 }
 
-                if (settings.stopOnError) {
-                    throw err;
-                } else {
-                    console.log(`[${currentJob.uid}] error occurred: ${err.stack}`)
-                    console.log(`[${currentJob.uid}] render proccess stopped with error...`)
-                    console.log(`[${currentJob.uid}] continue listening next job...`)
+                if (settings.waitBetweenJobs) {
+                    await delay(settings.waitBetweenJobs);
                 }
-            }
+            } while (active)
+        }
 
-            if (settings.waitBetweenJobs) {
-                await delay(settings.waitBetweenJobs);
-            }
-        } while (active)
+        settings.logger.log(`[worker] starting with concurrency = ${settings.concurrency}`);
+        const loops = Array.from({ length: Math.max(1, settings.concurrency) }, (_, i) => workerLoop(i));
+        await Promise.all(loops)
 
         // Clean up interruption handlers
         if (settings.handleInterruption) {
             process.removeListener('SIGINT', handleInterruption);
             process.removeListener('SIGTERM', handleInterruption);
+        }
+
+        if (heartbeatTimer) {
+            clearInterval(heartbeatTimer);
+            heartbeatTimer = null;
+        }
+
+        if (statusServer) {
+            try { statusServer.close(); } catch (e) {}
+            statusServer = null;
         }
     }
 
