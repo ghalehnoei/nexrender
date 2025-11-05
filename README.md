@@ -1166,12 +1166,26 @@ Installed licensed/trial version of Adobe After Effects
 ```sh
 $ nexrender-worker \
         --host=https://my.server.com:3050 \
-        --secret=myapisecret
+        --secret=myapisecret \
+        --concurrency=2 \
+        --status-port=8081 \
+        --heartbeat-interval=15000
 ```
 
 > Note: its recommended to run `nexrender-worker -h` at least once, to read all useful information about available options.
 
 More info: [@nexrender/worker](packages/nexrender-worker)
+
+#### Monitoring workers (new)
+
+Workers can periodically send heartbeats with runtime stats to the server, and optionally expose a local status endpoint.
+
+Server endpoints:
+
+* `GET /api/v1/workers` – list of workers (with `stale` flag)
+* `GET /api/v1/workers/:name` – get a specific worker entry
+* `GET /api/v1/workers/:name/status` – server proxies the worker’s live `/status`
+* `GET /api/v1/workers-summary` – aggregate view (totals and versions)
 
 ## Using API
 
