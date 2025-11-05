@@ -328,6 +328,22 @@ const createWorker = () => {
                     localJob.errorAt = new Date();
                     localJob.state = 'error';
 
+                    // Try to read After Effects log if not already attached
+                    if (!localJob.aeLog && localJob.workpath) {
+                        try {
+                            let logPath = path.resolve(localJob.workpath, `../aerender-${localJob.uid}.log`);
+                            if (process.env.NEXRENDER_ENABLE_AELOG_PROJECT_FOLDER) {
+                                logPath = path.join(localJob.workpath, `aerender.log`);
+                            }
+                            if (fs.existsSync(logPath)) {
+                                localJob.aeLog = fs.readFileSync(logPath, 'utf8');
+                            }
+                        } catch (logErr) {
+                            // If reading log fails, continue without it
+                            settings.logger.log(`[${localJob.uid}] warning: could not read After Effects log: ${logErr.message}`);
+                        }
+                    }
+
                     settings.track('Worker Job Error', { job_id: localJob.uid });
 
                     if (settings.onError) {
