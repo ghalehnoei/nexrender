@@ -1,0 +1,37 @@
+{
+  "name": "@nexrender/worker",
+  "version": "1.62.3",
+  "author": "inlife",
+  "main": "src/index.js",
+  "homepage": "https://www.nexrender.com",
+  "bugs": "https://github.com/inlife/nexrender/issues",
+  "repository": "https://github.com/inlife/nexrender.git",
+  "scripts": {
+    "start": "node src/bin.js"
+  },
+  "bin": {
+    "nexrender-worker": "src/bin.js"
+  },
+  "pkg": {
+    "assets": [
+      "/**/action-lottie/lib/**/*",
+      "/**/action-lottie/scripts/**/*"
+    ],
+    "targets": [
+      "node18-macos-x64",
+      "node18-win-x64"
+    ]
+  },
+  "dependencies": {
+    "@nexrender/api": "^1.62.0",
+    "@nexrender/core": "^1.62.2",
+    "@nexrender/types": "^1.62.0",
+    "arg": "^4.1.0",
+    "chalk": "^2.4.2",
+    "rimraf": "^3.0.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "gitHead": "441c3e3127cb50b603263fd560b617482b31eda8"
+}

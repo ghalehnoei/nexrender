@@ -1,0 +1,23 @@
+{
+  "name": "@nexrender/action-upload",
+  "homepage": "https://www.nexrender.com",
+  "authors": [
+    "inlife",
+    "zuntah"
+  ],
+  "version": "1.47.1",
+  "main": "index.js",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "requireg": "^0.2.1"
+  },
+  "peerDependencies": {
+    "@nexrender/provider-ftp": "^1.17.2",
+    "@nexrender/provider-gs": "^1.21.3",
+    "@nexrender/provider-nx": "^1.47.0",
+    "@nexrender/provider-s3": "^1.21.4",
+    "@nexrender/provider-sftp": "^1.37.9"
+  }
+}

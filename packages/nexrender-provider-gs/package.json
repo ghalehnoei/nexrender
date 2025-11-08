@@ -1,0 +1,13 @@
+{
+  "name": "@nexrender/provider-gs",
+  "homepage": "https://www.nexrender.com",
+  "version": "1.62.0",
+  "author": "dockheas23",
+  "main": "src/index.js",
+  "dependencies": {
+    "@google-cloud/storage": "^7.7.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

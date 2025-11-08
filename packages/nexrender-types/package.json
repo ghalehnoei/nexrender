@@ -1,0 +1,16 @@
+{
+  "name": "@nexrender/types",
+  "version": "1.62.0",
+  "author": "Inlife",
+  "main": "src/index.js",
+  "homepage": "https://www.nexrender.com",
+  "bugs": "https://github.com/inlife/nexrender/issues",
+  "repository": "https://github.com/inlife/nexrender.git",
+  "dependencies": {
+    "nanoid": "^3.2.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "gitHead": "84cef65e008026f6fcf4f040943144401f101fce"
+}

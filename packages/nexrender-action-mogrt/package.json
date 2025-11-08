@@ -1,0 +1,17 @@
+{
+  "name": "@nexrender/action-mogrt",
+  "version": "1.57.1",
+  "description": "MOGRT support for Nexrender",
+  "main": "index.js",
+  "authors": [
+    "Kristian von Streng Hæhre",
+    "inlife"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "node-stream-zip": "^1.15.0",
+    "tempy": "^1.0.1"
+  }
+}

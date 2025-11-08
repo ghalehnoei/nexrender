@@ -1,0 +1,26 @@
+# folders
+.sync/
+node_modules/
+misc/ignored/
+bin/
+
+# files
+*.log
+.env
+*.mp4
+
+# Editors
+.idea
+*.iml
+
+# OS metadata
+.DS_Store
+Thumbs.
+
+notmytest.js
+
+# https://github.com/inlife/nexrender/pull/307#issuecomment-581802928
+yarn.lock
+
+packages/nexrender-core/test/workpath/
+packages/nexrender-provider-s3/test/manual.js
