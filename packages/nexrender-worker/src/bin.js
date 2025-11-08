@@ -3,10 +3,9 @@
 const arg       = require('arg')
 const chalk     = require('chalk')
 const { init } = require('@nexrender/core')
-const {start, createWorker}   = require('./index')
+const {start}   = require('./index')
 const {version} = require('../package.json')
 const rimraf    = require('rimraf')
-const {createStatusService} = require('./status-service')
 
 const args = arg({
     // Types
@@ -31,6 +30,7 @@ const args = arg({
     '--stop-at-time':           String,
     '--stop-days':              String,
     '--wait-between-jobs':      Number,
+    '--concurrency':            Number,
 
     '--skip-cleanup':           Boolean,
     '--skip-render':            Boolean,
@@ -51,11 +51,8 @@ const args = arg({
     '--language':               String,
 
     '--handle-interruption':     Boolean,
-    
-    '--status-service':         Boolean,
     '--status-port':            Number,
-    
-    '--max-concurrent-jobs':    Number,
+    '--heartbeat-interval':     Number,
 
     // Aliases
     '-v':           '--version',
@@ -163,6 +160,8 @@ if (args['--help']) {
 
     --wait-between-jobs                     amount of miliseconds to wait before checking queued projects from the api
 
+    --concurrency                           number of jobs to process in parallel within a single worker process (default 1)
+
     --header                                Define custom header that the worker will use to communicate with nexrender-server.
                                             Accepted format follows curl or wget request header definition,
                                             eg. --header="Some-Custom-Header: myCustomValue".
@@ -192,16 +191,16 @@ if (args['--help']) {
 
     --language                              language of local after effects installation. currently only en and de are supported
 
-    --status-service                        enables HTTP status service that exposes worker status via API endpoint
-
-    --status-port                           port number for the status service (default: 3100)
-
-    --max-concurrent-jobs                   maximum number of jobs to process simultaneously (default: 1)
+    --status-port                           starts a local HTTP server exposing GET /health and GET /status (default disabled)
+    --heartbeat-interval                    interval in ms for sending worker heartbeats to the server (default 15000)
 
 
   {bold ENV VARS}
 
       NEXRENDER_API_POLLING                 amount of miliseconds to wait before checking queued projects from the api
+      NEXRENDER_WORKER_CONCURRENCY          default concurrency if --concurrency not provided
+      NEXRENDER_WORKER_STATUS_PORT          default status port if --status-port not provided (0 disables)
+      NEXRENDER_WORKER_HEARTBEAT_MS         default heartbeat interval if --heartbeat-interval not provided
 
   {bold ENV EXAMPLE}
 
@@ -253,6 +252,7 @@ opt('exitOnEmptyQueue',     '--exit-on-empty-queue');
 opt('stopAtTime',           '--stop-at-time');
 opt('stopDays',             '--stop-days');
 opt('waitBetweenJobs',      '--wait-between-jobs');
+opt('concurrency',          '--concurrency');
 opt('maxMemoryPercent',     '--max-memory-percent');
 opt('imageCachePercent',    '--image-cache-percent');
 opt('polling',              '--polling');
@@ -261,7 +261,8 @@ opt('aeParams',             '--aerender-parameter');
 opt('tagSelector',          '--tag-selector');
 opt('language',             '--language');
 opt('handleInterruption',    '--handle-interruption');
-opt('maxConcurrentJobs',     '--max-concurrent-jobs');
+opt('statusPort',           '--status-port');
+opt('heartbeatInterval',    '--heartbeat-interval');
 
 if(args['--cache-path']){
     opt('cache', '--cache-path');
@@ -318,20 +319,4 @@ if (args['--header']){
     });
 }
 
-// Create worker instance
-const worker = createWorker();
-
-// Start status service if enabled
-if (args['--status-service']) {
-    const statusPort = args['--status-port'] || 3100;
-    const statusServer = createStatusService(worker, statusPort);
-    
-    statusServer.listen(statusPort, () => {
-        console.log(chalk`> status service listening on {bold http://localhost:${statusPort}}`)
-        console.log(chalk`  - Status endpoint: {cyan http://localhost:${statusPort}/status}`)
-        console.log(chalk`  - Health endpoint: {cyan http://localhost:${statusPort}/health}`)
-    });
-}
-
-// Start the worker
-worker.start(serverHost, serverSecret, settings, headers);
+start(serverHost, serverSecret, settings, headers);

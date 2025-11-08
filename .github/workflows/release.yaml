@@ -13,7 +13,7 @@ jobs:
     steps:
     - uses: actions/setup-node@v3
       with:
-        node-version: 16
+        node-version: 18
     - uses: actions/checkout@v3
       with:
         fetch-depth: 0
@@ -24,6 +24,12 @@ jobs:
       run: npm run start
     - name: Build binaries
       run: npm run pkg
+    - name: Generate checksums
+      run: |
+        cd bin
+        for f in *; do
+          if [ -f "$f" ]; then shasum -a 256 "$f" > "$f.sha256"; fi
+        done
 
     # - name: Sign and notarize the nexrender-cli-macos
     #   uses: toitlang/action-macos-sign-notarize@v1.1.1
@@ -81,5 +87,7 @@ jobs:
       uses: softprops/action-gh-release@v1
       if: success()
       with:
-        # body: ${{ steps.release_notes.outputs.release_body }}
-        files: bin/*
+        body_path: CHANGELOG.md
+        files: |
+          bin/*
+          bin/*.sha256

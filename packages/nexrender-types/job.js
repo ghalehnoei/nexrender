@@ -116,6 +116,7 @@ const getRenderingStatus = job => ({
     jobCreator: job.creator,
     jobExecutor: job.executor || null,
     timings: job.timings || null,
+    aeLog: job.aeLog || null,
 })
 
 module.exports = {

@@ -20,7 +20,10 @@ You can download binaries directly from the [releases](https://github.com/inlife
 ```sh
 $ nexrender-worker \
         --host=https://my.server.com:3050 \
-        --secret=myapisecret
+        --secret=myapisecret \
+        --concurrency=2 \
+        --status-port=8081 \
+        --heartbeat-interval=15000
 ```
 
 > Note: its recommended to run `nexrender-worker -h` at least once, to read all useful information about available options.
@@ -97,3 +100,13 @@ Available settings (almost same as for `nexrender-core`):
 * `cache` - boolean or string. Set the cache folder used by HTTP assets. If `true` will use the default path of `${workpath}/http-cache`, if set to a string it will be interpreted as a filesystem path to the cache folder.
 * `name` - string. An unique name (or not) to the `nexrender-worker`, and it will be identified in the `nexrender-server`. It can be used as an executor name on picked job(s) as well.
 * `handleInterruption` - boolean, if set to true, enables handling of interruption signals (SIGINT, SIGTERM). When an interruption signal is received, the worker will attempt to update the current job's state to 'queued' before shutting down. (false by default)
+* `concurrency` - number, run multiple jobs in parallel in a single worker process (default 1)
+* `statusPort` - number, starts a local HTTP server exposing GET `/health` and `/status` (default 0 - disabled)
+* `heartbeatInterval` - number (ms), interval between heartbeats sent to the server (default 15000)
+
+### Local status endpoints
+
+If `statusPort` is set, the worker will expose:
+
+* `GET /health` → returns `ok`
+* `GET /status` → JSON payload with name, version, pid, uptime, concurrency, runningJobs, memory, loadavg, timestamp

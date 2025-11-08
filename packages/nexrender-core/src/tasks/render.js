@@ -314,10 +314,21 @@ Estimated date of change to the new behavior: 2023-06-01.\n`);
                 .map(a => '' + a).join('');
 
             if (code !== 0 && settings.stopOnError) {
+                let aeLog = outputStr;
                 if (fs.existsSync(logPath)) {
                     settings.logger.log(`[${job.uid}] dumping aerender log:`)
-                    settings.logger.log(fs.readFileSync(logPath, 'utf8'))
+                    try {
+                        const fileLog = fs.readFileSync(logPath, 'utf8');
+                        settings.logger.log(fileLog);
+                        if (fileLog.length > aeLog.length) {
+                            aeLog = fileLog;
+                        }
+                    } catch (err) {
+                        settings.logger.log(outputStr);
+                    }
                 }
+                // Attach After Effects log to job object even on error
+                job.aeLog = aeLog;
 
                 settings.trackSync('Job Render Failed', {
                     job_id: job.uid, // anonymized internally
@@ -335,6 +346,23 @@ Estimated date of change to the new behavior: 2023-06-01.\n`);
             settings.logger.log(`[${job.uid}] writing aerender job log to: ${logPath}`);
 
             fs.writeFileSync(logPath, outputStr);
+            
+            // Attach After Effects log to job object for sending to server
+            let aeLog = outputStr;
+            // Also try to read from the log file if it exists (AE may write additional info)
+            if (fs.existsSync(logPath)) {
+                try {
+                    const fileLog = fs.readFileSync(logPath, 'utf8');
+                    // Use file log if it's longer or different (AE may have written more)
+                    if (fileLog.length > aeLog.length) {
+                        aeLog = fileLog;
+                    }
+                } catch (err) {
+                    // If reading fails, use outputStr
+                    settings.logger.log(`[${job.uid}] warning: could not read log file, using output string: ${err.message}`);
+                }
+            }
+            job.aeLog = aeLog;
 
             /* resolve job without checking if file exists, or its size for image sequences */
             if (settings.skipRender || job.template.imageSequence || ['jpeg', 'jpg', 'png', 'tif', 'tga'].indexOf(outputFile) !== -1) {
@@ -367,10 +395,21 @@ Estimated date of change to the new behavior: 2023-06-01.\n`);
             }
 
             if (defaultOutputs.length === 0 || !fs.existsSync(defaultOutputs[0])) {
+                let aeLog = outputStr;
                 if (fs.existsSync(logPath)) {
                     settings.logger.log(`[${job.uid}] dumping aerender log:`)
-                    settings.logger.log(fs.readFileSync(logPath, 'utf8'))
+                    try {
+                        const fileLog = fs.readFileSync(logPath, 'utf8');
+                        settings.logger.log(fileLog);
+                        if (fileLog.length > aeLog.length) {
+                            aeLog = fileLog;
+                        }
+                    } catch (err) {
+                        settings.logger.log(outputStr);
+                    }
                 }
+                // Attach After Effects log to job object even when output not found
+                job.aeLog = aeLog;
 
                 settings.trackSync('Job Render Failed', { job_id: job.uid, error: 'aerender_output_not_found' });
                 clearTimeout(timeoutID);

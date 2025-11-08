@@ -116,3 +116,17 @@ Probably should not be used by users, unless they know what are they doing.
 
 Can serve as the health check for the service, does not require the secret header to be passed.
 Returns 200 always.
+
+### Workers registry (new)
+
+The server maintains an in-memory registry of workers that send periodic heartbeats. A worker can provide its `name`, `statusPort`, and runtime stats.
+
+Workers are considered `stale` if no heartbeat is received within `NEXRENDER_WORKER_TTL_MS` (default 60000 ms).
+
+Endpoints:
+
+* `POST /api/v1/workers/heartbeat` – internal; workers post heartbeats here. Requires `nexrender-secret` header if secret is enabled
+* `GET /api/v1/workers` – list all workers with lastHeartbeat and stale flag
+* `GET /api/v1/workers/:name` – get one worker record
+* `GET /api/v1/workers/:name/status` – proxy fetches the worker's live local `/status` (requires the server can reach the worker IP and `statusPort`)
+* `GET /api/v1/workers-summary` – returns aggregate counts and version breakdown
