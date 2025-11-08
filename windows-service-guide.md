@@ -21,10 +21,10 @@ Open **PowerShell as Administrator** and run:
 cd C:\nssm\
 
 # Install the service
-.\nssm.exe install NexrenderWorker "node" "C:\path\to\nexrender-worker\packages\nexrender-worker\src\bin.js --host=http://localhost:3000 --name=worker1 --max-concurrent-jobs=5"
+.\nssm.exe install NexrenderWorker "node" "C:\path\to\nexrender-worker\packages\nexrender-worker\src\bin.js --host=http://localhost:3000 --name=worker1 --concurrency=5"
 
 # Or use the built binary
-.\nssm.exe install NexrenderWorker "C:\path\to\nexrender-worker\bin\nexrender-worker-win64.exe" "--host=http://localhost:3000 --name=worker1 --max-concurrent-jobs=5"
+.\nssm.exe install NexrenderWorker "C:\path\to\nexrender-worker\bin\nexrender-worker-win64.exe" "--host=http://localhost:3000 --name=worker1 --concurrency=5"
 
 # Set service description
 .\nssm.exe set NexrenderWorker Description "Nexrender Worker - Processes After Effects rendering jobs"
@@ -103,7 +103,7 @@ type "C:\path\to\nexrender-worker\logs\worker-stdout.log"
    - Click "New"
    - Action: "Start a program"
    - Program/script: `C:\path\to\node.exe` or `C:\path\to\nexrender-worker-win64.exe`
-   - Add arguments: `--host=http://localhost:3000 --name=worker1 --max-concurrent-jobs=5`
+   - Add arguments: `--host=http://localhost:3000 --name=worker1 --concurrency=5`
    - Start in: `C:\path\to\nexrender-worker`
 
 4. **Conditions Tab:**
@@ -138,7 +138,7 @@ const svc = new Service({
   nodeOptions: [
     '--host=http://localhost:3000',
     '--name=worker1',
-    '--max-concurrent-jobs=5'
+    '--concurrency=5'
   ]
 });
 
@@ -198,7 +198,7 @@ Create `nexrender-worker.xml`:
   <name>Nexrender Worker</name>
   <description>Nexrender Worker - Processes After Effects rendering jobs</description>
   <executable>node</executable>
-  <arguments>packages\nexrender-worker\src\bin.js --host=http://localhost:3000 --name=worker1 --max-concurrent-jobs=5</arguments>
+  <arguments>packages\nexrender-worker\src\bin.js --host=http://localhost:3000 --name=worker1 --concurrency=5</arguments>
   <workingdirectory>C:\path\to\nexrender-worker</workingdirectory>
   <logpath>C:\path\to\nexrender-worker\logs</logpath>
   <logmode>rotate</logmode>
@@ -225,7 +225,7 @@ For production use with the binary:
 
 ```powershell
 # Using NSSM with the built binary
-.\nssm.exe install NexrenderWorker "C:\path\to\nexrender-worker\bin\nexrender-worker-win64.exe" "--host=http://localhost:3000 --secret=myapisecret --name=worker1 --max-concurrent-jobs=5 --status-service --status-port=3100"
+.\nssm.exe install NexrenderWorker "C:\path\to\nexrender-worker\bin\nexrender-worker-win64.exe" "--host=http://localhost:3000 --secret=myapisecret --name=worker1 --concurrency=5 --status-port=3100"
 
 # Set restart on failure
 .\nssm.exe set NexrenderWorker AppExit Default Restart

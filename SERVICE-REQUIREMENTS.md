@@ -62,13 +62,13 @@ Before installing, you'll need to know:
 3. **Run the installation script:**
    ```powershell
    cd "C:\Users\ghalenoei.m\Documents\Nexrender-worker"
-   .\install-service-quick.ps1 -Host "http://localhost:3000" -WorkerName "worker1"
+   .\install-service-quick.ps1 -ServerHost "http://localhost:3000" -WorkerName "worker1"
    ```
 
 4. **For production with secret:**
    ```powershell
    .\install-service-quick.ps1 `
-       -Host "http://your-server:3000" `
+       -ServerHost "http://your-server:3000" `
        -Secret "your-api-secret" `
        -WorkerName "production-worker" `
        -MaxConcurrentJobs 8
@@ -82,7 +82,7 @@ cd "C:\Users\ghalenoei.m\Documents\Nexrender-worker"
 .\install-worker-service.ps1 `
     -UseBinary `
     -BinaryPath "C:\Users\ghalenoei.m\Documents\Nexrender-worker\bin\nexrender-worker-win64.exe" `
-    -Host "http://localhost:3000" `
+    -ServerHost "http://localhost:3000" `
     -WorkerName "worker1" `
     -MaxConcurrentJobs 5 `
     -StatusPort 3100

@@ -2,7 +2,7 @@
 # This script will download NSSM if needed and install the service
 
 param(
-    [string]$Host = "http://localhost:3000",
+    [string]$ServerHost = "http://localhost:3000",
     [string]$Secret = "",
     [string]$WorkerName = "worker1",
     [int]$MaxConcurrentJobs = 5,
@@ -57,7 +57,7 @@ Write-Host "Installing Nexrender Worker as Windows Service..." -ForegroundColor 
 Write-Host ""
 
 # Build worker arguments
-$WorkerArgs = "--host=$Host --name=$WorkerName --max-concurrent-jobs=$MaxConcurrentJobs --status-service --status-port=$StatusPort"
+$WorkerArgs = "--host=$ServerHost --name=$WorkerName --concurrency=$MaxConcurrentJobs --status-port=$StatusPort"
 if ($Secret) {
     $WorkerArgs += " --secret=$Secret"
 }
@@ -65,7 +65,7 @@ if ($Secret) {
 Write-Host "Configuration:" -ForegroundColor Cyan
 Write-Host "  Service Name: $ServiceName" -ForegroundColor White
 Write-Host "  Worker Binary: $WorkerBinary" -ForegroundColor White
-Write-Host "  Server Host: $Host" -ForegroundColor White
+Write-Host "  Server Host: $ServerHost" -ForegroundColor White
 Write-Host "  Worker Name: $WorkerName" -ForegroundColor White
 Write-Host "  Max Concurrent Jobs: $MaxConcurrentJobs" -ForegroundColor White
 Write-Host "  Status Port: $StatusPort" -ForegroundColor White
@@ -117,6 +117,10 @@ Write-Host "Configuring service settings..." -ForegroundColor Green
 # Set working directory
 & $NSSMPath set $ServiceName AppDirectory $ScriptDir
 
+# Configure service to run as current user (to avoid SYSTEM profile issues)
+$CurrentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+& $NSSMPath set $ServiceName ObjectName $CurrentUser
+
 # Configure logging
 $LogPath = Join-Path $ScriptDir "logs"
 if (-not (Test-Path $LogPath)) {
@@ -133,15 +137,31 @@ Write-Host ""
 $start = Read-Host "Would you like to start the service now? (Y/N)"
 if ($start -eq "Y" -or $start -eq "y") {
     Write-Host "Starting service..." -ForegroundColor Green
-    Start-Service -Name $ServiceName
-    Start-Sleep -Seconds 2
-    
-    $service = Get-Service -Name $ServiceName
-    if ($service.Status -eq "Running") {
-        Write-Host "Service is now running!" -ForegroundColor Green
-    } else {
-        Write-Host "Service started but status is: $($service.Status)" -ForegroundColor Yellow
-        Write-Host "Check logs for details: $LogPath" -ForegroundColor Yellow
+    try {
+        Start-Service -Name $ServiceName -ErrorAction Stop
+        Start-Sleep -Seconds 3
+        
+        $service = Get-Service -Name $ServiceName
+        if ($service.Status -eq "Running") {
+            Write-Host "Service is now running!" -ForegroundColor Green
+        } else {
+            Write-Host "Service status: $($service.Status)" -ForegroundColor Yellow
+            Write-Host "Check logs for details: $LogPath" -ForegroundColor Yellow
+            if (Test-Path (Join-Path $LogPath "worker-stderr.log")) {
+                Write-Host ""
+                Write-Host "Last few error log entries:" -ForegroundColor Cyan
+                Get-Content (Join-Path $LogPath "worker-stderr.log") -Tail 5
+            }
+        }
+    } catch {
+        Write-Host "ERROR: Failed to start service: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "The service may need to be configured to run as your user account." -ForegroundColor Yellow
+        Write-Host "Run this command to fix it:" -ForegroundColor Yellow
+        Write-Host "  C:\nssm\nssm.exe set $ServiceName ObjectName `"$CurrentUser`"" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "Or run the fix script:" -ForegroundColor Yellow
+        Write-Host "  .\fix-service-now.ps1" -ForegroundColor Cyan
     }
 }
 

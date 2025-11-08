@@ -28,7 +28,7 @@ Open **PowerShell as Administrator** and run:
 cd "C:\Users\ghalenoei.m\Documents\Nexrender-worker"
 
 # Basic installation with default settings
-.\install-worker-service.ps1 -UseBinary -BinaryPath "C:\Users\ghalenoei.m\Documents\Nexrender-worker\bin\nexrender-worker-win64.exe" -Host "http://localhost:3000" -WorkerName "worker1"
+.\install-worker-service.ps1 -UseBinary -BinaryPath "C:\Users\ghalenoei.m\Documents\Nexrender-worker\bin\nexrender-worker-win64.exe" -ServerHost "http://localhost:3000" -WorkerName "worker1"
 ```
 
 ### Step 3: Configure (Optional Parameters)
@@ -39,7 +39,7 @@ For production use with custom settings:
 .\install-worker-service.ps1 `
     -UseBinary `
     -BinaryPath "C:\Users\ghalenoei.m\Documents\Nexrender-worker\bin\nexrender-worker-win64.exe" `
-    -Host "http://your-server:3000" `
+    -ServerHost "http://your-server:3000" `
     -Secret "your-api-secret" `
     -WorkerName "production-worker" `
     -MaxConcurrentJobs 10 `
@@ -62,7 +62,7 @@ If you prefer to install manually:
 cd C:\nssm
 
 # Install the service
-.\nssm.exe install NexrenderWorker "C:\Users\ghalenoei.m\Documents\Nexrender-worker\bin\nexrender-worker-win64.exe" "--host=http://localhost:3000 --name=worker1 --max-concurrent-jobs=5 --status-service --status-port=3100"
+.\nssm.exe install NexrenderWorker "C:\Users\ghalenoei.m\Documents\Nexrender-worker\bin\nexrender-worker-win64.exe" "--host=http://localhost:3000 --name=worker1 --concurrency=5 --status-port=3100"
 
 # Set service description
 .\nssm.exe set NexrenderWorker Description "Nexrender Worker - Processes After Effects rendering jobs"
@@ -93,9 +93,8 @@ cd C:\nssm
 
 ### Optional Parameters:
 - `--secret`: API secret for authentication
-- `--max-concurrent-jobs`: Maximum concurrent rendering jobs (default: 5)
-- `--status-service`: Enable status service
-- `--status-port`: Port for status service (default: 3100)
+- `--concurrency`: Number of jobs to process in parallel (default: 1)
+- `--status-port`: Port for status service (starts HTTP server exposing /health and /status endpoints, default: disabled)
 - `--workpath`: Working directory for jobs
 - `--binary`: Path to After Effects renderer binary
 - `--cache`: Enable caching
@@ -186,7 +185,7 @@ cd C:\nssm
 .\install-worker-service.ps1 `
     -UseBinary `
     -BinaryPath "C:\Users\ghalenoei.m\Documents\Nexrender-worker\bin\nexrender-worker-win64.exe" `
-    -Host "http://nexrender-server.company.com:3000" `
+    -ServerHost "http://nexrender-server.company.com:3000" `
     -Secret "your-secure-api-secret-here" `
     -WorkerName "worker-prod-01" `
     -MaxConcurrentJobs 8 `

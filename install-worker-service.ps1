@@ -5,7 +5,7 @@ param(
     [string]$NSSMPath = "C:\nssm\nssm.exe",
     [string]$WorkerPath = "",
     [string]$ServiceName = "NexrenderWorker",
-    [string]$Host = "http://localhost:3000",
+    [string]$ServerHost = "http://localhost:3000",
     [string]$Secret = "",
     [string]$WorkerName = "worker1",
     [int]$MaxConcurrentJobs = 5,
@@ -24,7 +24,7 @@ if (-not $isAdmin) {
 # Determine worker executable
 if ($UseBinary -and $BinaryPath) {
     $WorkerExecutable = $BinaryPath
-    $WorkerArgs = "--host=$Host --name=$WorkerName --max-concurrent-jobs=$MaxConcurrentJobs --status-service --status-port=$StatusPort"
+    $WorkerArgs = "--host=$ServerHost --name=$WorkerName --concurrency=$MaxConcurrentJobs --status-port=$StatusPort"
     if ($Secret) {
         $WorkerArgs += " --secret=$Secret"
     }
@@ -38,7 +38,7 @@ if ($UseBinary -and $BinaryPath) {
         }
     }
     $WorkerExecutable = "node"
-    $WorkerArgs = "`"$WorkerPath`" --host=$Host --name=$WorkerName --max-concurrent-jobs=$MaxConcurrentJobs --status-service --status-port=$StatusPort"
+    $WorkerArgs = "`"$WorkerPath`" --host=$ServerHost --name=$WorkerName --concurrency=$MaxConcurrentJobs --status-port=$StatusPort"
     if ($Secret) {
         $WorkerArgs += " --secret=$Secret"
     }
@@ -90,6 +90,10 @@ if (-not $UseBinary) {
     $WorkingDirectory = $PSScriptRoot
 }
 & $NSSMPath set $ServiceName AppDirectory $WorkingDirectory
+
+# Configure service to run as current user (to avoid SYSTEM profile issues)
+$CurrentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+& $NSSMPath set $ServiceName ObjectName $CurrentUser
 
 # Configure logging
 $LogPath = Join-Path $PSScriptRoot "logs"
