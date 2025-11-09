@@ -262,6 +262,11 @@ Estimated date of change to the new behavior: 2023-06-01.\n`);
         instance.on('error', err => {
             clearTimeout(timeoutID);
             clearInterval(updateTimeoutInterval);
+            // Attach any collected output as log
+            const outputStr = output.map(a => '' + a).join('');
+            if (outputStr) {
+                job.aeLog = outputStr;
+            }
             settings.trackSync('Job Render Failed', { job_id: job.uid, error: 'aerender_spawn_error' });
             return reject(new Error(`Error starting aerender process: ${err}`));
         });
@@ -285,6 +290,11 @@ Estimated date of change to the new behavior: 2023-06-01.\n`);
             if (now - updateTimeout > settings.maxUpdateTimeout * 1000) {
                 clearInterval(updateTimeoutInterval);
                 clearTimeout(timeoutID);
+                // Attach any collected output as log
+                const outputStr = output.map(a => '' + a).join('');
+                if (outputStr) {
+                    job.aeLog = outputStr;
+                }
                 settings.trackSync('Job Render Failed', { job_id: job.uid, error: 'aerender_no_update' });
                 reject(new Error(`No update from aerender for ${settings.maxUpdateTimeout} seconds`));
                 crossPlatformKill(instance)
@@ -297,6 +307,11 @@ Estimated date of change to the new behavior: 2023-06-01.\n`);
                 () => {
                     clearInterval(updateTimeoutInterval);
                     clearTimeout(timeoutID);
+                    // Attach any collected output as log
+                    const outputStr = output.map(a => '' + a).join('');
+                    if (outputStr) {
+                        job.aeLog = outputStr;
+                    }
                     settings.trackSync('Job Render Failed', { job_id: job.uid, error: 'aerender_timeout' });
                     reject(new Error(`Maximum rendering time exceeded`));
                     crossPlatformKill(instance)
@@ -313,8 +328,26 @@ Estimated date of change to the new behavior: 2023-06-01.\n`);
             const outputStr = output
                 .map(a => '' + a).join('');
 
+            // Always write log file and attach log, even on errors
+            // Use outputStr if available, otherwise try to read from log file if it exists
+            let aeLog = outputStr || '';
+            if (aeLog) {
+                try {
+                    fs.writeFileSync(logPath, aeLog);
+                } catch (writeErr) {
+                    settings.logger.log(`[${job.uid}] warning: could not write log file: ${writeErr.message}`);
+                }
+            } else if (fs.existsSync(logPath)) {
+                // If no outputStr but log file exists, read from file
+                try {
+                    aeLog = fs.readFileSync(logPath, 'utf8');
+                } catch (readErr) {
+                    settings.logger.log(`[${job.uid}] warning: could not read log file: ${readErr.message}`);
+                }
+            }
+
             if (code !== 0 && settings.stopOnError) {
-                let aeLog = outputStr;
+                // Try to read from log file if it exists (AE may have written more)
                 if (fs.existsSync(logPath)) {
                     settings.logger.log(`[${job.uid}] dumping aerender log:`)
                     try {
@@ -324,11 +357,17 @@ Estimated date of change to the new behavior: 2023-06-01.\n`);
                             aeLog = fileLog;
                         }
                     } catch (err) {
-                        settings.logger.log(outputStr);
+                        if (outputStr) {
+                            settings.logger.log(outputStr);
+                        }
                     }
                 }
-                // Attach After Effects log to job object even on error
-                job.aeLog = aeLog;
+                // Attach After Effects log to job object even on error (ensure it's set)
+                if (aeLog) {
+                    job.aeLog = aeLog;
+                } else if (outputStr) {
+                    job.aeLog = outputStr;
+                }
 
                 settings.trackSync('Job Render Failed', {
                     job_id: job.uid, // anonymized internally
@@ -341,28 +380,54 @@ Estimated date of change to the new behavior: 2023-06-01.\n`);
                 return reject(new Error(outputStr || 'aerender.exe failed to render the output into the file due to an unknown reason'));
             }
 
-            const renderTime = (Date.now() - renderStopwatch) / 1000
-            settings.logger.log(`[${job.uid}] rendering took ~${renderTime} sec.`);
-            settings.logger.log(`[${job.uid}] writing aerender job log to: ${logPath}`);
-
-            fs.writeFileSync(logPath, outputStr);
-            
-            // Attach After Effects log to job object for sending to server
-            let aeLog = outputStr;
-            // Also try to read from the log file if it exists (AE may write additional info)
-            if (fs.existsSync(logPath)) {
-                try {
-                    const fileLog = fs.readFileSync(logPath, 'utf8');
-                    // Use file log if it's longer or different (AE may have written more)
-                    if (fileLog.length > aeLog.length) {
-                        aeLog = fileLog;
+            // If code !== 0 but stopOnError is false, we continue but still attach log
+            if (code !== 0 && !settings.stopOnError) {
+                // Update aeLog if log file has more content
+                if (fs.existsSync(logPath)) {
+                    try {
+                        const fileLog = fs.readFileSync(logPath, 'utf8');
+                        if (fileLog.length > aeLog.length) {
+                            aeLog = fileLog;
+                        }
+                    } catch (err) {
+                        // Use existing aeLog if file read fails
                     }
-                } catch (err) {
-                    // If reading fails, use outputStr
-                    settings.logger.log(`[${job.uid}] warning: could not read log file, using output string: ${err.message}`);
+                }
+                // Ensure log is attached
+                if (aeLog) {
+                    job.aeLog = aeLog;
+                } else if (outputStr) {
+                    job.aeLog = outputStr;
                 }
             }
-            job.aeLog = aeLog;
+
+            const renderTime = (Date.now() - renderStopwatch) / 1000
+            settings.logger.log(`[${job.uid}] rendering took ~${renderTime} sec.`);
+            
+            // Attach After Effects log to job object for sending to server
+            // (Log file was already written above for all cases)
+            if (code === 0) {
+                settings.logger.log(`[${job.uid}] aerender job log written to: ${logPath}`);
+            }
+            
+            // Ensure log is attached (may have been set earlier for error cases)
+            if (!job.aeLog) {
+                // Update aeLog if log file has more content
+                if (fs.existsSync(logPath)) {
+                    try {
+                        const fileLog = fs.readFileSync(logPath, 'utf8');
+                        // Use file log if it's longer or different (AE may have written more)
+                        if (fileLog.length > aeLog.length) {
+                            aeLog = fileLog;
+                        }
+                    } catch (err) {
+                        // If reading fails, use existing aeLog
+                        settings.logger.log(`[${job.uid}] warning: could not read log file: ${err.message}`);
+                    }
+                }
+                // Attach log (use aeLog if available, otherwise outputStr)
+                job.aeLog = aeLog || outputStr || '';
+            }
 
             /* resolve job without checking if file exists, or its size for image sequences */
             if (settings.skipRender || job.template.imageSequence || ['jpeg', 'jpg', 'png', 'tif', 'tga'].indexOf(outputFile) !== -1) {

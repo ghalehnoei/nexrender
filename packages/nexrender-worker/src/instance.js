@@ -9,6 +9,69 @@ const http = require('http')
 const os = require('os')
 const fetch = require('node-fetch')
 
+// Helper function to find log file for a job
+function findAELogFile(jobUid, workpath, settings) {
+    const logPaths = [];
+    
+    // Calculate workpath if not provided (same logic as setup.js)
+    let calculatedWorkpath = workpath;
+    if (!calculatedWorkpath && settings && settings.workpath) {
+        calculatedWorkpath = path.join(settings.workpath, jobUid);
+    }
+    if (!calculatedWorkpath) {
+        calculatedWorkpath = path.join(os.tmpdir(), 'nexrender', jobUid);
+    }
+    
+    // Build possible log file paths - try workpath-based locations first
+    if (calculatedWorkpath) {
+        if (process.env.NEXRENDER_ENABLE_AELOG_PROJECT_FOLDER) {
+            logPaths.push(path.join(calculatedWorkpath, 'aerender.log'));
+        }
+        logPaths.push(path.resolve(calculatedWorkpath, `../aerender-${jobUid}.log`));
+        logPaths.push(path.join(calculatedWorkpath, `../aerender-${jobUid}.log`));
+        logPaths.push(path.join(path.dirname(calculatedWorkpath), `aerender-${jobUid}.log`));
+    }
+    
+    // Also try the provided workpath if different from calculated
+    if (workpath && workpath !== calculatedWorkpath) {
+        if (process.env.NEXRENDER_ENABLE_AELOG_PROJECT_FOLDER) {
+            logPaths.push(path.join(workpath, 'aerender.log'));
+        }
+        logPaths.push(path.resolve(workpath, `../aerender-${jobUid}.log`));
+        logPaths.push(path.join(workpath, `../aerender-${jobUid}.log`));
+    }
+    
+    // Try default temp locations
+    const defaultTemp = path.join(os.tmpdir(), 'nexrender');
+    const defaultJobTemp = path.join(defaultTemp, jobUid);
+    if (process.env.NEXRENDER_ENABLE_AELOG_PROJECT_FOLDER) {
+        logPaths.push(path.join(defaultJobTemp, 'aerender.log'));
+    }
+    logPaths.push(path.resolve(defaultJobTemp, `../aerender-${jobUid}.log`));
+    logPaths.push(path.join(defaultTemp, `aerender-${jobUid}.log`));
+    logPaths.push(path.join(os.tmpdir(), `aerender-${jobUid}.log`));
+    
+    // Try parent directory of temp
+    logPaths.push(path.join(path.dirname(defaultTemp), `aerender-${jobUid}.log`));
+    
+    // Try each path
+    for (const logPath of logPaths) {
+        try {
+            if (fs.existsSync(logPath)) {
+                const logContent = fs.readFileSync(logPath, 'utf8');
+                if (logContent && logContent.trim().length > 0) {
+                    return { path: logPath, content: logContent };
+                }
+            }
+        } catch (err) {
+            // Continue to next path if read fails
+            continue;
+        }
+    }
+    
+    return null;
+}
+
 const NEXRENDER_API_POLLING = process.env.NEXRENDER_API_POLLING || 30 * 1000;
 const NEXRENDER_TOLERATE_EMPTY_QUEUES = process.env.NEXRENDER_TOLERATE_EMPTY_QUEUES;
 const NEXRENDER_PICKUP_TIMEOUT = process.env.NEXRENDER_PICKUP_TIMEOUT || 60 * 1000; // 60 second timeout by default
@@ -329,18 +392,21 @@ const createWorker = () => {
                     localJob.state = 'error';
 
                     // Try to read After Effects log if not already attached
-                    if (!localJob.aeLog && localJob.workpath) {
-                        try {
-                            let logPath = path.resolve(localJob.workpath, `../aerender-${localJob.uid}.log`);
-                            if (process.env.NEXRENDER_ENABLE_AELOG_PROJECT_FOLDER) {
-                                logPath = path.join(localJob.workpath, `aerender.log`);
+                    if (!localJob.aeLog) {
+                        const logResult = findAELogFile(localJob.uid, localJob.workpath, settings);
+                        if (logResult) {
+                            localJob.aeLog = logResult.content;
+                            settings.logger.log(`[${localJob.uid}] read After Effects log from file: ${logResult.path} (${localJob.aeLog.length} bytes)`);
+                        } else {
+                            // Calculate workpath for logging
+                            let workpath = localJob.workpath;
+                            if (!workpath && settings && settings.workpath) {
+                                workpath = path.join(settings.workpath, localJob.uid);
                             }
-                            if (fs.existsSync(logPath)) {
-                                localJob.aeLog = fs.readFileSync(logPath, 'utf8');
+                            if (!workpath) {
+                                workpath = path.join(os.tmpdir(), 'nexrender', localJob.uid);
                             }
-                        } catch (logErr) {
-                            // If reading log fails, continue without it
-                            settings.logger.log(`[${localJob.uid}] warning: could not read After Effects log: ${logErr.message}`);
+                            settings.logger.log(`[${localJob.uid}] After Effects log not found after searching multiple locations. Calculated workpath: ${workpath}`);
                         }
                     }
 
