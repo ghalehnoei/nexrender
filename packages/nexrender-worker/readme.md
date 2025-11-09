@@ -54,7 +54,6 @@ const main = async () => {
         binary: '/Users/mynames/Applications/aerender',
         skipCleanup: true,
         tagSelector: false,
-        addLicense: false,
         debug: true,
         actions: {
             "custom-action": (job, settings, {input, params}, type) => {
@@ -85,7 +84,6 @@ Available settings (almost same as for `nexrender-core`):
 * `reuse` - boolean, false by default, (from Adobe site): Reuse the currently running instance of After Effects (if found) to perform the render. When an already running instance is used, aerender saves preferences to disk when rendering has completed, but does not quit After Effects. If this argument is not used, aerender starts a new instance of After Effects, even if one is already running. It quits that instance when rendering has completed, and does not save preferences.
 * `maxMemoryPercent` - integer, undefined by default, check [original documentation](https://helpx.adobe.com/after-effects/using/automated-rendering-network-rendering.html) for more info
 * `imageCachePercent` - integer, undefined by default, check [original documentation](https://helpx.adobe.com/after-effects/using/automated-rendering-network-rendering.html) for more info
-* `addLicense` - boolean, providing false will disable ae_render_only_node.txt license file auto-creation (true by default)
 * `forceCommandLinePatch` - boolean, providing true will force patch re-installation
 * `stopOnError` - boolean, stop the pick-up-and-render process if an error occurs (false by default)
 * `exitOnEmptyQueue` - boolean, stop the worker if too many empty queues are detected (false by default)

@@ -161,7 +161,7 @@ if ($start -eq "Y" -or $start -eq "y") {
         Write-Host "  C:\nssm\nssm.exe set $ServiceName ObjectName `"$CurrentUser`"" -ForegroundColor Cyan
         Write-Host ""
         Write-Host "Or run the fix script:" -ForegroundColor Yellow
-        Write-Host "  .\fix-service-now.ps1" -ForegroundColor Cyan
+        Write-Host "  .\fix-service-user.ps1" -ForegroundColor Cyan
     }
 }
 

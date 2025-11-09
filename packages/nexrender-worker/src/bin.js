@@ -34,7 +34,6 @@ const args = arg({
 
     '--skip-cleanup':           Boolean,
     '--skip-render':            Boolean,
-    '--no-license':             Boolean,
     '--no-analytics':           Boolean,
     '--force-patch':            Boolean,
     '--debug':                  Boolean,
@@ -138,11 +137,8 @@ if (args['--help']) {
 
     --stop-days                             comma separated list of weekdays when to stop. Must be used together with --stop-at-time
                                             0 is sunday, 6 is saturday
-                                            example: --stop-at-time=5:00 stop-days=1,2,3,4,5
+                                            example:     --stop-at-time=5:00 stop-days=1,2,3,4,5
                                             will stop at 5 am but not on weekend
-
-    --no-license                            prevents creation of the ae_render_only_node.txt file (enabled by default),
-                                            which allows free usage of trial version of Adobe After Effects
 
     --no-analytics                          prevents collection of fully anonymous analytics by nexrender (enabled by default),
                                             this data is used to improve nexrender and its features, read on what is collected in the readme
@@ -238,7 +234,6 @@ if (settings.hasOwnProperty('ae-params')) {
 opt('name',                 '--name');
 opt('binary',               '--binary');
 opt('workpath',             '--workpath');
-opt('no-license',           '--no-license');
 opt('no-analytics',         '--no-analytics');
 opt('skipCleanup',          '--skip-cleanup');
 opt('skipRender',           '--skip-render');
@@ -290,12 +285,8 @@ if (args['--cleanup']) {
     process.exit();
 }
 
-if (settings['no-license']) {
-    settings.addLicense = false;
-    delete settings['no-license'];
-} else {
-    settings.addLicense = true;
-}
+// License file creation is disabled
+settings.addLicense = false;
 
 /* debug implies verbose */
 // settings.verbose = settings.debug;

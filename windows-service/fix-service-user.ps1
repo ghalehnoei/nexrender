@@ -39,8 +39,17 @@ if (Test-Path $NSSMPath) {
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Service configured successfully!" -ForegroundColor Green
         Write-Host ""
-        Write-Host "You can now start the service with:" -ForegroundColor Yellow
-        Write-Host "  Start-Service -Name $ServiceName" -ForegroundColor Cyan
+        Write-Host "Starting service..." -ForegroundColor Yellow
+        Start-Service -Name $ServiceName
+        Start-Sleep -Seconds 3
+        
+        $service = Get-Service -Name $ServiceName
+        if ($service.Status -eq "Running") {
+            Write-Host "Service is now running!" -ForegroundColor Green
+        } else {
+            Write-Host "Service status: $($service.Status)" -ForegroundColor Yellow
+            Write-Host "You can start it manually with: Start-Service -Name $ServiceName" -ForegroundColor Cyan
+        }
     } else {
         Write-Host "ERROR: Failed to configure service" -ForegroundColor Red
         exit 1
