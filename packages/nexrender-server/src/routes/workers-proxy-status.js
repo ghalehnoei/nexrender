@@ -18,6 +18,8 @@ module.exports = async (req, res) => {
             return send(res, 502, { error: `fetch failed: ${r.status}` });
         }
         const json = await r.json();
+        // Remove job IDs from the response
+        delete json.runningJobs;
         return send(res, 200, json);
     } catch (e) {
         return send(res, 502, { error: e.message });
