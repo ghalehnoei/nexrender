@@ -52,6 +52,7 @@ const args = arg({
     '--handle-interruption':     Boolean,
     '--status-port':            Number,
     '--heartbeat-interval':     Number,
+    '--insecure':                Boolean,
 
     // Aliases
     '-v':           '--version',
@@ -190,6 +191,11 @@ if (args['--help']) {
     --status-port                           starts a local HTTP server exposing GET /health and GET /status (default disabled)
     --heartbeat-interval                    interval in ms for sending worker heartbeats to the server (default 15000)
 
+    --insecure                              disables SSL certificate verification for HTTPS connections.
+                                            Use this option when connecting to servers with self-signed certificates
+                                            or when SSL verification causes connection problems.
+                                            {bold WARNING:} This makes the connection vulnerable to man-in-the-middle attacks.
+
 
   {bold ENV VARS}
 
@@ -258,6 +264,7 @@ opt('language',             '--language');
 opt('handleInterruption',    '--handle-interruption');
 opt('statusPort',           '--status-port');
 opt('heartbeatInterval',    '--heartbeat-interval');
+opt('insecure',             '--insecure');
 
 if(args['--cache-path']){
     opt('cache', '--cache-path');

@@ -100,11 +100,18 @@ const download = (job, settings, asset) => {
             const src = asset.src
 
             try {
+                const fetchOptions = {
+                    ...asset.params,
+                    timeout: NEXRENDER_DOWNLOAD_TIMEOUT
+                };
+                
+                // Disable SSL verification if insecure setting is enabled
+                if (settings.insecure && protocol === 'https') {
+                    fetchOptions.strictSSL = false;
+                }
+                
                 return withTimeout(
-                    fetch(src, {
-                        ...asset.params,
-                        timeout: NEXRENDER_DOWNLOAD_TIMEOUT
-                    })
+                    fetch(src, fetchOptions)
                     .then(res => res.ok ? res : Promise.reject(new Error(`Unable to download file ${src}`)))
                     .then(res => {
                         // Set a file extension based on content-type header if not already set

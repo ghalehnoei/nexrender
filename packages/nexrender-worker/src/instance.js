@@ -6,6 +6,7 @@ const { getRenderingStatus } = require('@nexrender/types/job')
 const { withTimeout } = require('@nexrender/core/src/helpers/timeout');
 const pkg = require('../package.json')
 const http = require('http')
+const https = require('https')
 const os = require('os')
 const fetch = require('node-fetch')
 
@@ -220,7 +221,7 @@ const createWorker = () => {
         headers = headers || {};
         headers['user-agent'] = ('nexrender-worker/' + pkg.version + ' ' + (headers['user-agent'] || '')).trim();
 
-        client = createClient({ host, secret, headers, name: settings.name });
+        client = createClient({ host, secret, headers, name: settings.name, insecure: settings.insecure });
         const getStatusPayload = () => {
             return {
                 name: settings.name || os.hostname(),
@@ -267,7 +268,7 @@ const createWorker = () => {
                 try {
                     const payload = getStatusPayload();
                     const hbUrl = `${host}/api/v1/workers/heartbeat`;
-                    const resp = await fetch(hbUrl, {
+                    const fetchOptions = {
                         method: 'post',
                         headers: {
                             'content-type': 'application/json',
@@ -275,7 +276,16 @@ const createWorker = () => {
                             'nexrender-name': settings.name || '',
                         },
                         body: JSON.stringify(payload),
-                    });
+                    };
+                    
+                    // Configure SSL verification if insecure option is set
+                    if (settings.insecure && hbUrl.startsWith('https://')) {
+                        fetchOptions.agent = new https.Agent({
+                            rejectUnauthorized: false
+                        });
+                    }
+                    
+                    const resp = await fetch(hbUrl, fetchOptions);
                     if (!resp.ok) {
                         const t = await resp.text();
                         settings.logger.log(`[worker] heartbeat failed: ${resp.status} ${t}`)

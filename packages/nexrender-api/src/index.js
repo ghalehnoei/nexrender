@@ -7,7 +7,7 @@ let fetchAgent = typeof process == 'undefined' ? null : { // eslint-disable-line
 
 const pkg = require('../package.json')
 
-const createClient = ({ host, secret, polling, headers, name }) => {
+const createClient = ({ host, secret, polling, headers, name, insecure }) => {
     if (localFetch.default) {
         localFetch = localFetch.default
     }
@@ -45,7 +45,10 @@ const createClient = ({ host, secret, polling, headers, name }) => {
                 if (_parsedURL.protocol == 'http:') {
                     return new fetchAgent.http({ keepAlive: false });
                 } else {
-                    return new fetchAgent.https({ keepAlive: false });
+                    return new fetchAgent.https({ 
+                        keepAlive: false,
+                        rejectUnauthorized: insecure ? false : true
+                    });
                 }
             }
         } else {
