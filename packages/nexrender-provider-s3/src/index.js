@@ -1,8 +1,10 @@
 const fs = require('fs')
+const https = require('https')
 const uri = require('./uri')
 const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3')
 const { fromIni } = require('@aws-sdk/credential-providers')
 const { Upload } = require('@aws-sdk/lib-storage')
+const { NodeHttpHandler } = require('@smithy/node-http-handler')
 
 /* return a credentials object if possible, otherwise return undefined */
 const getCredentials = params => {
@@ -30,21 +32,32 @@ const getCredentials = params => {
 }
 
 /* create new S3 client instance */
-const createS3Client = (params, credentials) => {
-    if (params.endpoint) {
-        return new S3Client({
-            region: params.region || 'auto',
-            endpoint: params.endpoint,
-            credentials: credentials,
-            forcePathStyle: true, // Required for custom endpoints
-            ...(params.signatureVersion && { signatureVersion: params.signatureVersion }),
-        })
+const createS3Client = (params, credentials, insecure = false) => {
+    const clientConfig = {
+        region: params.region || 'auto',
+        credentials: credentials
     }
 
-    return new S3Client({
-        region: params.region,
-        credentials: credentials
-    })
+    // Configure SSL verification bypass if insecure is enabled
+    if (insecure) {
+        const httpsAgent = new https.Agent({
+            rejectUnauthorized: false
+        })
+        const requestHandler = new NodeHttpHandler({
+            httpsAgent: httpsAgent
+        })
+        clientConfig.requestHandler = requestHandler
+    }
+
+    if (params.endpoint) {
+        clientConfig.endpoint = params.endpoint
+        clientConfig.forcePathStyle = true // Required for custom endpoints
+        if (params.signatureVersion) {
+            clientConfig.signatureVersion = params.signatureVersion
+        }
+    }
+
+    return new S3Client(clientConfig)
 }
 
 /* define public methods */
@@ -64,7 +77,8 @@ const download = async (job, settings, src, dest, params) => {
     }
 
     const credentials = getCredentials(params.credentials)
-    const s3Client = createS3Client(params, credentials)
+    const insecure = settings && settings.insecure
+    const s3Client = createS3Client(params, credentials, insecure)
 
     const command = new GetObjectCommand({
         Bucket: parsed.bucket,
@@ -99,7 +113,8 @@ const upload = async (job, settings, src, params, onProgress, onComplete) => {
     }
 
     const credentials = getCredentials(params.credentials)
-    const s3Client = createS3Client(params, credentials)
+    const insecure = settings && settings.insecure
+    const s3Client = createS3Client(params, credentials, insecure)
 
     const fileStream = fs.createReadStream(src)
     const uploadParams = {
